@@ -4,39 +4,72 @@
 const OPERATORS = ['+', '-', '*', '/'];
 const OPERATOR_SYMBOLS = { '+': '+', '-': '−', '*': '×', '/': '÷' };
 
-// Evaluate expression respecting order of operations
+// Evaluate expression respecting order of operations (PEMDAS)
+// Uses a recursive descent parser for correct precedence
 export function evaluateExpression(numbers, ops) {
-  // Build array of numbers and operators
-  const values = [...numbers];
-  const opList = [...ops];
+  // Normalize operators: convert Unicode symbols to canonical forms
+  const normalized = ops.map((op) => {
+    if (op === '×') return '*';
+    if (op === '÷') return '/';
+    return op;
+  });
 
-  // First pass: multiplication and division
-  let i = 0;
-  while (i < opList.length) {
-    if (opList[i] === '*' || opList[i] === '/') {
-      const a = values[i];
-      const b = values[i + 1];
-      if (opList[i] === '/') {
-        if (b === 0) return null; // divide by zero
-        values[i] = a / b;
-      } else {
-        values[i] = a * b;
-      }
-      values.splice(i + 1, 1);
-      opList.splice(i, 1);
-    } else {
-      i++;
+  // Build tokens: [num, op, num, op, num, ...]
+  const tokens = [];
+  for (let i = 0; i < numbers.length; i++) {
+    tokens.push({ type: 'num', value: numbers[i] });
+    if (i < normalized.length) {
+      tokens.push({ type: 'op', value: normalized[i] });
     }
   }
 
-  // Second pass: addition and subtraction
-  let result = values[0];
-  for (let j = 0; j < opList.length; j++) {
-    if (opList[j] === '+') result += values[j + 1];
-    else if (opList[j] === '-') result -= values[j + 1];
+  // Recursive descent parser:
+  //   expression = term (('+' | '-') term)*
+  //   term       = factor (('*' | '/') factor)*
+  //   factor     = number
+
+  let pos = 0;
+
+  function parseExpression() {
+    let result = parseTerm();
+    while (pos < tokens.length && tokens[pos].type === 'op' &&
+           (tokens[pos].value === '+' || tokens[pos].value === '-')) {
+      const op = tokens[pos].value;
+      pos++;
+      const right = parseTerm();
+      if (op === '+') result += right;
+      else result -= right;
+    }
+    return result;
   }
 
-  return result;
+  function parseTerm() {
+    let result = parseFactor();
+    while (pos < tokens.length && tokens[pos].type === 'op' &&
+           (tokens[pos].value === '*' || tokens[pos].value === '/')) {
+      const op = tokens[pos].value;
+      pos++;
+      const right = parseFactor();
+      if (op === '*') result *= right;
+      else {
+        if (right === 0) return null; // divide by zero
+        result /= right;
+      }
+    }
+    return result;
+  }
+
+  function parseFactor() {
+    if (pos < tokens.length && tokens[pos].type === 'num') {
+      const value = tokens[pos].value;
+      pos++;
+      return value;
+    }
+    return null; // unexpected
+  }
+
+  const result = parseExpression();
+  return result === null ? null : result;
 }
 
 // Check if an operator placement results in 10
